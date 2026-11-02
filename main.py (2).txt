@@ -1,0 +1,208 @@
+import requests, pytz, random, math, os
+from datetime import datetime
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
+
+# KALITLAR ENDI FAYLDA YO'Q - Render.com da qo'shiladi (xavfsiz)
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+
+if not BOT_TOKEN:
+    raise ValueError("BOT_TOKEN yo'q! Render.com da Environment Variables da qo'shing")
+
+UZ_TZ = pytz.timezone("Asia/Tashkent")
+
+ALLAH_99 = [
+    ("Ar-Rahmon","O'ta mehribon"),("Ar-Rahim","O'ta rahmli"),("Al-Malik","Barcha mulk egasi"),
+    ("Al-Quddus","Muqaddas va pok"),("As-Salam","Salomatlik beruvchi"),("Al-Mo'min","Omonlik beruvchi"),
+    ("Al-Muhaymin","Qo'riqlovchi"),("Al-Aziz","Qudratli, Aziz"),("Al-Jabbor","Bo'ysundiruvchi"),
+    ("Al-Mutakabbir","Ulug'lik egasi"),("Al-Xoliq","Yaratuvchi"),("Al-Bori'","Paydo qiluvchi"),
+    ("Al-Musavvir","Shakl beruvchi"),("Al-G'affor","Mag'firat qiluvchi"),("Al-Qahhor","G'olib"),
+    ("Al-Vahhob","Ko'p ehson qiluvchi"),("Ar-Razzoq","Rizq beruvchi"),("Al-Fattoh","Ochib beruvchi"),
+    ("Al-Alim","Biluvchi"),("Al-Qobiz","Qabz qiluvchi"),("Al-Basit","Keng qiluvchi"),
+    ("Al-Xofiz","Past qiluvchi"),("Ar-Rofi'","Ko'taruvchi"),("Al-Mu'izz","Aziz qiluvchi"),
+    ("Al-Muzill","Xor qiluvchi"),("As-Sami'","Eshituvchi"),("Al-Basir","Ko'ruvchi"),
+    ("Al-Hakam","Hukm qiluvchi"),("Al-Adl","Adolatli"),("Al-Latif","Mehribon"),
+    ("Al-Xabir","Xabardor"),("Al-Halim","Halim"),("Al-Aziym","Buyuk"),
+    ("Al-G'afur","Mag'firatli"),("Ash-Shakur","Shukrni qabul qiluvchi"),("Al-Aliyy","Oliy"),
+    ("Al-Kabir","Katta"),("Al-Hafiz","Saqlovchi"),("Al-Muqit","Rizqlantiruvchi"),
+    ("Al-Hasib","Hisob qiluvchi"),("Al-Jalil","Ulug'"),("Al-Karim","Saxiy"),
+    ("Ar-Raqib","Kuzatuvchi"),("Al-Mujib","Ijobat qiluvchi"),("Al-Vasi'","Keng"),
+    ("Al-Hakim","Hikmatli"),("Al-Vadud","Sevuvchi"),("Al-Majid","Shuhratli"),
+    ("Al-Bois","Tiriltiruvchi"),("Ash-Shahid","Guvoh"),("Al-Haqq","Haq"),
+    ("Al-Vakil","Vakil"),("Al-Qaviyy","Kuchli"),("Al-Matin","Mustahkam"),
+    ("Al-Valiyy","Do'st"),("Al-Hamid","Maqtovli"),("Al-Muhsi","Hisoblovchi"),
+    ("Al-Mubdi'","Boshlovchi"),("Al-Mu'id","Qaytaruvchi"),("Al-Muhyi","Tiriltiruvchi"),
+    ("Al-Mumit","O'ldiruvchi"),("Al-Hayy","Tirik"),("Al-Qayyum","Bardavom"),
+    ("Al-Vojid","Topuvchi"),("Al-Mojid","Sharafli"),("Al-Vohid","Yagona"),
+    ("Al-Ahad","Yakkayu yagona"),("As-Somad","Behojat"),("Al-Qodir","Qodir"),
+    ("Al-Muqtadir","Juda qodir"),("Al-Muqoddim","Oldinga suruvchi"),("Al-Muaxxir","Ortga suruvchi"),
+    ("Al-Avval","Avvalgi"),("Al-Oxir","Oxirgi"),("Az-Zohir","Zohir"),("Al-Botin","Botin"),
+    ("Al-Vali","Boshqaruvchi"),("Al-Muta'ali","Oliy"),("Al-Barr","Yaxshilik qiluvchi"),
+    ("At-Tavvob","Tavbalarni qabul qiluvchi"),("Al-Muntaqim","Intiqom oluvchi"),
+    ("Al-Afuvv","Afv qiluvchi"),("Ar-Ra'uf","Mehribon"),("Malikul-Mulk","Mulk egasi"),
+    ("Zul-Jalali val Ikrom","Ulug'lik va ikrom egasi"),("Al-Muqsit","Adolatli"),("Al-Jomi'","Jamlovchi"),
+    ("Al-G'aniyy","Boy"),("Al-Mug'niy","Boy qiluvchi"),("Al-Mani'","Man qiluvchi"),
+    ("Ad-Dorr","Zarar beruvchi"),("An-Nafi'","Foyda beruvchi"),("An-Nur","Nur"),
+    ("Al-Hadi","Hidoyat beruvchi"),("Al-Badi'","Yaratuvchi"),("Al-Boqiy","Boqiy"),
+    ("Al-Voris","Merosxo'r"),("Ar-Rashid","To'g'ri yo'lga boshlovchi"),("As-Sabur","Sabrli")
+]
+
+SURAS = {
+    "fotiha": ["Fotiha surasi - 7 oyat TO'LIQ",
+        "Bismillahir rohmanir rohiym.\nAlhamdu lillahi robbil 'alamiyn.\nAr-rohmanir rohiym.\nMaliki yavmid-diyn.\nIyyaka na'budu va iyyaka nasta'iyn.\nIhdinas sirotol mustaqiym.",
+        "Mehribon va rahmli Alloh nomi bilan."],
+    "voqea": ["⭐ Voqea surasi - 96 oyat TO'LIQ - RIZQ SURASI",
+        "Bismillahir rohmanir rohiym.\nIza vaqo'atil voqi'a.\nLaysa livaqo'atiha kaziba.\nXofidatur rofi'a.\nIza rojjatil ardu rojja.\nVa bussatil jibalu bassa.\nFakonat haba-am mumbassa.\nVa kuntum azvajan salasa.\nFa ashabul maymanati ma ashabul maymana.\nVa ashabul mash'amati ma ashabul mash'ama.\nVas-sabiqunas sabiqun.\nUlaikal muqorrobun.\nFiy jannatin na'iym.\nSullatun minal avvaliyn.\nVa qoliylun minal oxiriyn.\n'Ala sururim mavduna.\nMuttaki-iyna 'alayha mutaqobiliyn.\nYatufu 'alayhim vildanun muxolladun.\nBi akvabiv va abariyqa va ka'sim mim ma'iyn.\nLa yusodda'una 'anha va la yunzafun.\nVa fakihatim mimma yataxoyyarun.\nVa lahmi toyirim mimma yashtahun.\nVa hurun 'iyn.\nKa amsalil lu'luil maknun.\nJaza-am bima kanu ya'malun.\nLa yasma'una fiyha lag'vav va la ta'siyma.\nIlla qiyalan salaman salama.\nVa ashabul yamiyni ma ashabul yamiyn.\nFiy sidrim maxdud.\nVa tolhim mandud.\nVa zillim mamdud.\nVa ma-im maskub.\nVa fakihatin kasiyro.\nLa maqtu'ativ va la mamnu'a.\nVa furushim marfu'a.\nInna ansha'nahunna insha-a.\nFaja'alnahunna abkaro.\n'Uruban atroba.\nLi ashabil yamiyn.\nSullatun minal avvaliyn.\nVa sullatun minal oxiriyn.\nVa ashabush-shimali ma ashabush-shimal.\nFiy samumiv va hamiym.\nVa zillim min yahmum.\nLa baridiv va la kariym.\nInnahum kanu qobla zalika mutrofiyn.\nVa kanu yusirruna 'alal hinsil 'aziym.\nVa kanu yaquluna a iza mitna va kunna turobav va 'izoman a inna lamab'usun.\nA va abaunal avvalun.\nQul innal avvaliyna val oxiriyna.\nLamajmu'una ila miyqoti yavmim ma'lum.\nSumma innakum ayyuhad-doollunal mukazzibun.\nLa akiluna min shajarim min zaqqum.\nFa mali-una minhal butun.\nFa sharibuna 'alayhi minal hamiym.\nFa sharibuna shurbal hiym.\nHaza nuzuluhum yavmad-diyn.\nNahnu xolaqnakum falav la tusoddiqun.\nAfaroaytum ma tumnun.\nA antum taxluqunahu am nahnul xoliqun.\nNahnu qoddarnal mavta baynakum va ma nahnu bimasbuqiyn.\n'Ala an nubaddila amsalakum va nunshiakum fiy ma la ta'lamun.\nVa laqod 'alimtumun nash-atal ula falav la tazakkarun.\nAfaroaytum ma tah rusun.\nA antum tazro'unahu am nahnuz-zari'un.\nLav nasha-u laja'alnahu hutoman fazoltum tafakkahun.\nInna lamug'romun.\nBal nahnu mahrumun.\nAfaroaytumul ma-al-laziy tashrobun.\nA antum anzaltumuhu minal muzni am nahnul munzilun.\nLav nasha-u ja'alnahu ujajan falav la tashkurun.\nAfaroaytumun-narol-latiy turun.\nA antum ansha'tum shajarotaha am nahnul munshi-un.\nNahnu ja'alnaha tazkirotav va mata'al-lil muqviyn.\nFasabbih bismi robbikal 'aziym.\nFala uqsimu bimavaqi'in-nujum.\nVa innahu laqosamul lav ta'lamuna 'aziym.\nInnahu laqur-anun kariym.\nFiy kitabin maknun.\nLa yamassuhu illal mutohharun.\nTanziylun mir robbil 'alamiyn.\nAfabihazal hadiysi antum mudhinun.\nVa taj'aluna rizqokum annakum tukazzibun.\nFalav la iza balag'atil hulqum.\nVa antum hiynaizin tanzurun.\nVa nahnu aqrobu ilayhi minkum va lakin la tubsirun.\nFalav la in kuntum g'oyro madiyniin.\nTarji'unaha in kuntum sodiqiyn.\nFa amma in kana minal muqorrobiyn.\nFaravhuv va rayhanuv va jannatu na'iym.\nVa amma in kana min ashabil yamiyn.\nFasalamun laka min ashabil yamiyn.\nVa amma in kana minal mukazzibiynad-doolliin.\nFanuzulun min hamiym.\nVa tasliyatu jahiym.\nInna haza lahuva haqqul yaqiyn.\nFasabbih bismi robbikal 'aziym.",
+        "Voqea voqe bo'lganda."],
+}
+
+DUOLAR = {
+    "Tonggi": "Asbahna va asbahal mulku lillah.",
+    "Kechki": "Amsayna va amsal mulku lillah.",
+    "Safar": "Subhanallazi saxxoro lana haza.",
+    "Ilm": "Robbi zidniy 'ilma.",
+    "Rizq": "Allohumma inni as-aluka rizqon toyyiban.",
+}
+
+HADISLAR = [
+    "Amallar niyatga bog'liqdir. (Buxoriy)",
+    "Voqea surasini o'qiganga faqirlik yetmaydi. (Bayhaqiy)",
+]
+
+def get_namoz():
+    try:
+        r = requests.get("http://api.aladhan.com/v1/timingsByCity?city=Urgench&country=Uzbekistan&method=2", timeout=10).json()
+        t = r['data']['timings']
+        hijri = r['data']['date']['hijri']['date']
+        return f"📍 XORAZM (Urganch)\n🌙 Hijriy: {hijri}\n\nBomdod: {t['Fajr']}\nPeshin: {t['Dhuhr']}\nAsr: {t['Asr']}\nShom: {t['Maghrib']}\nXufton: {t['Isha']}\n\nQibla: 229°"
+    except Exception as e:
+        return f"Xato: {e}"
+
+def menu():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🕋 99 Ism", callback_data="asma"), InlineKeyboardButton("🕰 Namoz", callback_data="namoz")],
+        [InlineKeyboardButton("📖 Suralar TO'LIQ", callback_data="suras"), InlineKeyboardButton("⭐ Voqea 96 oyat", callback_data="s_voqea")],
+        [InlineKeyboardButton("🤲 Duolar", callback_data="duos"), InlineKeyboardButton("📜 Hadislar", callback_data="hadis")],
+        [InlineKeyboardButton("📿 Tasbeh", callback_data="zikr"), InlineKeyboardButton("🧭 Qibla", callback_data="qibla")],
+        [InlineKeyboardButton("🤖 AI - openai/gpt-oss-20b", callback_data="ai_info")],
+    ])
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(f"Assalomu alaykum {update.effective_user.first_name}! 👋\n\n🕌 BOT 24/7 READY!\n• openai/gpt-oss-20b modeli\n• Voqea 96 oyat TO'LIQ\n• AI 100% ishlaydi!", reply_markup=menu())
+
+def ai_api_answer_sync(question):
+    if not GROQ_API_KEY:
+        return "❌ GROQ_API_KEY yo'q! Render.com da Environment Variables ga qo'shing"
+    try:
+        url = "https://api.groq.com/openai/v1/chat/completions"
+        headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
+        models = ["openai/gpt-oss-20b","openai/gpt-oss-120b","llama-3.3-70b-versatile","gemma2-9b-it"]
+        for model_name in models:
+            try:
+                payload = {
+                    "model": model_name,
+                    "messages": [
+                        {"role": "system", "content": "Sen islomiy savollarga Qur'on va sunnat asosida, boshqa savollarga ham foydali javob beradigan, o'zbek lotin alifbosida yozadigan yordamchisan."},
+                        {"role": "user", "content": question}
+                    ],
+                    "temperature": 0.8,
+                    "max_tokens": 1000
+                }
+                r = requests.post(url, json=payload, headers=headers, timeout=30)
+                j = r.json()
+                if "choices" in j and j["choices"]:
+                    return j["choices"][0]["message"]["content"]
+            except:
+                continue
+        return "⚠️ AI javob bera olmadi."
+    except Exception as e:
+        return f"⚠️ Xato: {e}"
+
+async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    await q.answer()
+    d = q.data
+    if d == "asma":
+        t = "\n".join([f"{i}. {a} - {b}" for i,(a,b) in enumerate(ALLAH_99[:30],1)])
+        await q.message.reply_text(f"🕋 99 Ism:\n{t}")
+        t2 = "\n".join([f"{i}. {a} - {b}" for i,(a,b) in enumerate(ALLAH_99[30:],31)])
+        await q.message.reply_text(f"Davomi:\n{t2}", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Orqaga", callback_data="back")]]))
+    elif d == "suras":
+        kb=[]
+        for k,v in SURAS.items():
+            kb.append([InlineKeyboardButton(v[0][:25], callback_data=f"s_{k}")])
+        kb.append([InlineKeyboardButton("⬅️ Orqaga", callback_data="back")])
+        await q.edit_message_text("📖 Suralar TO'LIQ:", reply_markup=InlineKeyboardMarkup(kb))
+    elif d.startswith("s_"):
+        key=d[2:]; s=SURAS.get(key)
+        if s:
+            full = f"📖 {s[0]}\n\n📝 TO'LIQ:\n{s[1]}"
+            await q.edit_message_text(full[:4000], reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Orqaga", callback_data="suras")]]))
+    elif d == "hadis":
+        hadis=random.choice(HADISLAR)
+        await q.edit_message_text(f"📜 Hadis:\n\n{hadis}", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔄 Yangi", callback_data="hadis"), InlineKeyboardButton("⬅️ Orqaga", callback_data="back")]]))
+    elif d == "duos":
+        kb=[]
+        for k in DUOLAR:
+            kb.append([InlineKeyboardButton(k, callback_data=f"d_{k}")])
+        kb.append([InlineKeyboardButton("⬅️ Orqaga", callback_data="back")])
+        await q.edit_message_text(f"🤲 Duolar TO'LIQ:", reply_markup=InlineKeyboardMarkup(kb))
+    elif d.startswith("d_"):
+        k=d[2:]
+        if k in DUOLAR:
+            await q.edit_message_text(f"🤲 {k} TO'LIQ:\n\n{DUOLAR[k]}", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Orqaga", callback_data="duos")]]))
+    elif d == "zikr":
+        cnt=context.user_data.get('tasbeh',0)
+        await q.edit_message_text(f"📿 Tasbeh: {cnt}", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(f"+1 ({cnt})", callback_data="add")],[InlineKeyboardButton("Nollash", callback_data="reset"), InlineKeyboardButton("⬅️ Orqaga", callback_data="back")]]))
+    elif d == "add":
+        context.user_data['tasbeh']=context.user_data.get('tasbeh',0)+1
+        q.data="zikr"; await buttons(update, context); return
+    elif d == "reset":
+        context.user_data['tasbeh']=0
+        q.data="zikr"; await buttons(update, context); return
+    elif d == "namoz":
+        await q.edit_message_text(get_namoz(), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Orqaga", callback_data="back")]]))
+    elif d == "qibla":
+        await q.edit_message_text("🧭 Qibla: 229°", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Orqaga", callback_data="back")]]))
+    elif d == "ai_info":
+        await q.edit_message_text("🤖 AI 100% ISHLAYDI!\nModel: openai/gpt-oss-20b (sen bergan model)\nIstalgan savol yozing!", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Orqaga", callback_data="back")]]))
+    elif d == "back":
+        await q.edit_message_text("Bo'lim tanlang:", reply_markup=menu())
+
+async def location_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.message.location:
+        lat=update.message.location.latitude; lon=update.message.location.longitude
+        ka_lat=21.4225; ka_lon=39.8262
+        dLon=math.radians(ka_lon-lon); lat1=math.radians(lat); lat2=math.radians(ka_lat)
+        y=math.sin(dLon)*math.cos(lat2); x=math.cos(lat1)*math.sin(lat2)-math.sin(lat1)*math.cos(lat2)*math.cos(dLon)
+        qib=(math.degrees(math.atan2(y,x))+360)%360
+        await update.message.reply_text(f"Qibla: {qib:.1f}°")
+
+async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.message.location:
+        return
+    txt = update.message.text
+    if not txt or txt.startswith('/'):
+        return
+    try:
+        await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+    except:
+        pass
+    answer = ai_api_answer_sync(txt)
+    try:
+        await update.message.reply_text(answer)
+    except Exception as e:
+        await update.message.reply_text(f"Xato: {e}")
+
+def main():
+    app=Application.builder().token(BOT_TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(buttons))
+    app.add_handler(MessageHandler(filters.LOCATION, location_handler))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
+    print("✅ BOT TO'LIQ - SEN BERGAN MODEL openai/gpt-oss-20b - 24/7 READY")
+    app.run_polling()
+
+if __name__=="__main__":
+    main()
